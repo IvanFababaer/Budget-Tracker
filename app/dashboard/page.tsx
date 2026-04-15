@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+// 1. ADDED deleteDoc and doc to the imports
+import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import TransactionForm from '../components/TransactionForm';
 import { PieChart, Pie, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
@@ -69,6 +70,21 @@ export default function Dashboard() {
     } catch (e) { console.error(e); }
   };
 
+  // 2. THE NEW DELETE FUNCTION
+  const handleDeleteTransaction = async (id: string) => {
+    // Optional: Add a confirmation dialog so users don't delete by accident
+    const isConfirmed = window.confirm("Are you sure you want to delete this transaction?");
+    if (!isConfirmed) return;
+
+    try {
+      // Deletes the document from Firestore. 
+      // The onSnapshot listener will automatically update the UI!
+      await deleteDoc(doc(db, 'transactions', id));
+    } catch (error) {
+      console.error("Error deleting transaction: ", error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 sm:p-8 transition-colors duration-500">
       <div className="max-w-6xl mx-auto space-y-10">
@@ -97,7 +113,7 @@ export default function Dashboard() {
             <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-500/20 text-white">
                <h2 className="text-indigo-100 text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Net Position</h2>
                <p className="text-4xl sm:text-5xl font-black mt-2 tracking-tighter">
-                  ₱{stats.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                 ₱{stats.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                </p>
                <div className="flex gap-4 mt-10 pt-6 border-t border-white/10">
                  <div>
@@ -173,9 +189,28 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      <p className={`text-xl font-black ml-4 whitespace-nowrap ${t.type === 'income' ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
-                        ₱{t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </p>
+                      
+                      {/* 3. ADDED THE DELETE BUTTON SECTION */}
+                      <div className="flex items-center gap-4">
+                        <p className={`text-xl font-black ml-4 whitespace-nowrap ${t.type === 'income' ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
+                          ₱{t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </p>
+                        
+                        <button 
+                          onClick={() => handleDeleteTransaction(t.id)}
+                          className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"
+                          title="Delete transaction"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                          </svg>
+                        </button>
+                      </div>
+
                     </div>
                   ))
                 )}
