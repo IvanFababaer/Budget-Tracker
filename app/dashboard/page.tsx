@@ -8,7 +8,10 @@ import TransactionForm from '../components/TransactionForm';
 import { PieChart, Pie, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 
 export default function Dashboard() {
-  // --- AUTH STATE ---
+  // ==========================================
+  // 1. STATE MANAGEMENT
+  // ==========================================
+  // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,11 +19,14 @@ export default function Dashboard() {
   const [authError, setAuthError] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // --- DASHBOARD STATE ---
+  // Data State
   const [transactions, setTransactions] = useState<any[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>('All Time');
 
-  // Listen for user login/logout
+  // ==========================================
+  // 2. EFFECTS (Real-time Listeners)
+  // ==========================================
+  // Listen for login/logout
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -29,11 +35,10 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch only the logged-in user's data
+  // Listen for user's transactions in real-time
   useEffect(() => {
-    if (!user) return; // Don't fetch if not logged in
+    if (!user) return;
 
-    // Pro-Tip: We removed orderBy from the query and will sort in Javascript to avoid a Firebase "Missing Index" error!
     const q = query(collection(db, 'transactions'), where('userId', '==', user.uid));
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -44,7 +49,7 @@ export default function Dashboard() {
         transArray.push({ id: doc.id, ...data, date: transactionDate });
       });
       
-      // Sort locally by newest first
+      // Sort newest first
       transArray.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
       setTransactions(transArray);
     });
@@ -52,10 +57,18 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [user]);
 
-  // --- AUTH FUNCTIONS ---
+  // ==========================================
+  // 3. ACTION HANDLERS
+  // ==========================================
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    
+    if (password.length < 6) {
+      setAuthError('Password must be at least 6 characters.');
+      return;
+    }
+
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
@@ -63,21 +76,32 @@ export default function Dashboard() {
         await createUserWithEmailAndPassword(auth, email, password);
       }
     } catch (err: any) {
-      setAuthError(err.message || 'Authentication failed');
+      console.error("Firebase Auth Error:", err.code);
+      switch (err.code) {
+        case 'auth/email-already-in-use':
+          setAuthError('This email is already registered. Try signing in instead.');
+          break;
+        case 'auth/invalid-credential':
+        case 'auth/wrong-password':
+        case 'auth/user-not-found':
+          setAuthError('Incorrect email or password.');
+          break;
+        default:
+          setAuthError('Something went wrong. Please try again.');
+      }
     }
   };
 
-  // --- DATA FUNCTIONS ---
   const handleAddTransaction = async (data: any) => {
     if (!user) return;
     try {
       await addDoc(collection(db, 'transactions'), {
         ...data,
-        userId: user.uid, // <-- THIS TIES THE DATA TO THE USER
+        userId: user.uid,
         date: new Date(),
         createdAt: new Date()
       });
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error adding:", e); }
   };
 
   const handleDeleteTransaction = async (id: string) => {
@@ -87,7 +111,9 @@ export default function Dashboard() {
     } catch (error) { console.error("Error deleting: ", error); }
   };
 
-  // --- MEMOIZED CALCS (Same as before) ---
+  // ==========================================
+  // 4. DATA CALCULATIONS (Memoized for performance)
+  // ==========================================
   const monthOptions = useMemo(() => {
     const months = transactions.map(t => t.date.toLocaleString('default', { month: 'long', year: 'numeric' }));
     return ['All Time', ...Array.from(new Set(months))];
@@ -113,10 +139,14 @@ export default function Dashboard() {
     }, []);
   }, [filteredData]);
 
-  // --- RENDER LOADING ---
-  if (isAuthLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-500">Loading...</div>;
+  // ==========================================
+  // 5. RENDER SCREENS
+  // ==========================================
+  
+  // Loading Screen
+  if (isAuthLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-500 font-medium tracking-widest uppercase">Loading App...</div>;
 
-  // --- RENDER LOGIN SCREEN ---
+  // Login/Signup Screen
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
@@ -133,7 +163,7 @@ export default function Dashboard() {
               <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Email</label>
               <input 
                 type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                className="w-full mt-1 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white"
+                className="w-full mt-1 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white font-medium"
                 placeholder="you@example.com"
               />
             </div>
@@ -141,21 +171,21 @@ export default function Dashboard() {
               <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Password</label>
               <input 
                 type="password" required value={password} onChange={e => setPassword(e.target.value)}
-                className="w-full mt-1 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white"
+                className="w-full mt-1 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white font-medium"
                 placeholder="••••••••"
               />
             </div>
             
-            {authError && <p className="text-rose-500 text-sm font-medium text-center">{authError}</p>}
+            {authError && <p className="text-rose-500 text-sm font-bold text-center bg-rose-50 dark:bg-rose-500/10 p-3 rounded-xl">{authError}</p>}
 
-            <button type="submit" className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all active:scale-95 shadow-md">
+            <button type="submit" className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all active:scale-95 shadow-md mt-2">
               {isLogin ? 'Sign In' : 'Create Account'}
             </button>
           </form>
 
           <button 
             onClick={() => { setIsLogin(!isLogin); setAuthError(''); }}
-            className="w-full mt-6 text-sm text-slate-500 hover:text-indigo-500 font-medium transition-colors"
+            className="w-full mt-6 text-sm text-slate-500 hover:text-indigo-500 font-bold transition-colors"
           >
             {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
           </button>
@@ -164,21 +194,22 @@ export default function Dashboard() {
     );
   }
 
-  // --- RENDER DASHBOARD (Authenticated) ---
+  // Main Dashboard Screen
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 sm:p-8 transition-colors duration-500">
       <div className="max-w-6xl mx-auto space-y-10">
         
+        {/* HEADER */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
               Finance <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-violet-500">Pulse</span>
             </h1>
-            <p className="text-slate-500 font-medium">Viewing: <span className="text-indigo-500">{selectedMonth}</span></p>
+            <p className="text-slate-500 font-medium mt-1">Logged in as: <span className="text-indigo-500 font-bold">{user.email}</span></p>
           </div>
 
           <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="relative inline-block w-full md:w-48">
+            <div className="relative w-full md:w-48">
               <select 
                 value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
                 className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl shadow-sm font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
@@ -186,7 +217,6 @@ export default function Dashboard() {
                 {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
-            {/* NEW SIGN OUT BUTTON */}
             <button 
               onClick={() => signOut(auth)}
               className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm text-slate-500 hover:text-rose-500 transition-colors font-bold text-sm whitespace-nowrap"
@@ -197,6 +227,7 @@ export default function Dashboard() {
         </header>
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
           {/* LEFT COLUMN: Stats & Chart */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-500/20 text-white">
@@ -216,25 +247,28 @@ export default function Dashboard() {
                </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 h-[380px] shadow-sm">
-              <h3 className="text-slate-900 dark:text-white font-black text-sm uppercase tracking-widest mb-6 text-center">Spending Mix</h3>
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 h-[380px] shadow-sm flex flex-col">
+              <h3 className="text-slate-900 dark:text-white font-black text-sm uppercase tracking-widest mb-4 text-center">Spending Mix</h3>
               {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="90%">
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={chartData} cx="50%" cy="45%" innerRadius={65} outerRadius={85} paddingAngle={8} dataKey="value" stroke="none" animationBegin={0} animationDuration={800}>
+                    <Pie data={chartData} cx="50%" cy="45%" innerRadius={60} outerRadius={80} paddingAngle={8} dataKey="value" stroke="none" animationBegin={0} animationDuration={800}>
                       {chartData.map((_, i) => <Cell key={`cell-${i}`} fill={['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899'][i % 5]} />)}
                     </Pie>
-                    <Tooltip contentStyle={{borderRadius: '16px', border: 'none', backgroundColor: '#0f172a', color: '#fff'}} />
+                    <Tooltip 
+                      contentStyle={{borderRadius: '16px', border: 'none', backgroundColor: '#0f172a', color: '#fff'}} 
+                      formatter={(value: any) => [`₱${Number(value).toLocaleString()}`, 'Total']}
+                    />
                     <Legend verticalAlign="bottom" iconType="circle" formatter={(v) => <span className="text-[10px] font-bold text-slate-400 uppercase">{v}</span>} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-slate-400 italic text-sm">No expense data</div>
+                <div className="flex-1 flex items-center justify-center text-slate-400 font-medium text-sm">No expense data</div>
               )}
             </div>
           </div>
           
-          {/* RIGHT COLUMN: Form & Feed */}
+          {/* RIGHT COLUMN: Form & Activity Stream */}
           <div className="lg:col-span-8 flex flex-col h-full">
             <TransactionForm onSubmit={handleAddTransaction} />
             
@@ -291,6 +325,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
