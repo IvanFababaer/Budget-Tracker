@@ -53,7 +53,11 @@ export default function SpendingChart({ data }: { data: any[] }) {
                 padding: '12px'
               }}
               itemStyle={{ color: '#fff' }}
-              formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Total']}
+              // BULLETPROOF TYPE FIX:
+              formatter={(value: any) => {
+                const numericValue = Number(value) || 0;
+                return [`₱${numericValue.toLocaleString()}`, 'Total'] as any;
+              }}
             />
             <Legend 
               verticalAlign="bottom" 
